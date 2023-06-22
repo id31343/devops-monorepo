@@ -1,0 +1,21 @@
+---
+- hosts: all
+  gather_facts: no
+  become: true
+
+  tasks:
+    - name: Update and upgrade apt packages
+      apt:
+        upgrade: yes
+        update_cache: yes
+    
+    - name: Install common dependencies
+      apt:
+        name:
+          - vim
+          - nano
+          - curl
+          - wget
+          - htop
+          - tree
+        state: latest

@@ -1,0 +1,79 @@
+---
+- hosts: all
+  gather_facts: no
+  become: true
+
+  vars_files:
+    - vars/vault.yaml
+
+  handlers:
+    - name: Restart sshd
+      service: name=sshd state=restarted
+
+    - name: Start fail2ban
+      service: name=fail2ban state=started
+
+  tasks:
+    - name: Change password for root and vagrant users
+      user:
+        name: "{{ item.username }}"
+        update_password: always
+        password: "{{ vagrant_password|password_hash('sha512') }}"
+      with_items:
+        - username: root
+        - username: vagrant
+      
+    - name: Remove NOPASSWD from vagrant user
+      lineinfile:
+         dest: "/etc/sudoers.d/vagrant"
+         regexp: "^vagrant"
+         line: "vagrant ALL=(ALL) ALL"
+    
+    - name: Make sure SSH is more secure
+      lineinfile:
+       dest: "/etc/ssh/sshd_config"
+       regexp: "{{ item.regexp }}"
+       line: "{{ item.line }}"
+       validate: "sshd -T -f %s"
+      with_items:
+       - regexp: "^PasswordAuthentication"
+         line: "PasswordAuthentication no"
+       - regexp: "^PermitRootLogin"
+         line: "PermitRootLogin no"
+      notify: Restart sshd
+
+    - name: Install unattended-upgrades package
+      apt:
+        name: unattended-upgrades
+    
+    - name: Copy unattended-upgrades config files
+      template:
+        src: "../templates/{{ item }}.j2"
+        dest: "/etc/apt/apt.conf.d/{{ item }}"
+        owner: root
+        group: root
+        mode: 0644
+      with_items:
+        - 20auto-upgrades
+        - 50unattended-upgrades
+
+    - name: Configure open ports with ufw
+      ufw:
+        port: "{{ item.port }}"
+        proto: "{{ item.proto }}"
+        rule: allow
+        direction: in
+        state: enabled
+      with_items:
+        - port: "22"
+          proto: tcp
+        - port: "80"
+          proto: tcp
+        - port: "443"
+          proto: tcp
+
+    - name: Install fail2ban
+      apt:
+        name: fail2ban
+      notify: Start fail2ban
+      

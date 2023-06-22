@@ -1,0 +1,23 @@
+version: '3'
+
+services:
+
+  # Please pretend it's an actuall nginx server
+  nginx:
+    image: ${REGISTRY}/demo-app-nginx:${IMAGE_TAG}
+    container_name: nginx
+    restart: always
+    ports:
+      - 8000:80
+    # ports:
+    #   - 80:80
+    #   - 443:443
+    depends_on:
+      - web
+  
+  web:
+    image: ${REGISTRY}/demo-app-node:${IMAGE_TAG}
+    container_name: web
+    restart: always
+    environment:
+      - NODE_ENV=prod

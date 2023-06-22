@@ -1,0 +1,15 @@
+---
+- name: Configure minimal security
+  import_playbook: security.yaml
+
+- name: Install common dependencies
+  import_playbook: dependencies.yaml
+
+- name: Install docker
+  import_playbook: docker.yaml
+
+- name: Create deploy user
+  import_playbook: deploy-user.yaml
+
+- name: Configure services 
+  import_playbook: services.yaml

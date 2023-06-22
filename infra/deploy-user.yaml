@@ -1,0 +1,33 @@
+---
+- hosts: all
+  gather_facts: no
+  become: true
+
+  tasks:
+    - name: Generate SSH key pair
+      openssh_keypair:
+        path: "/home/vagrant/.ssh/deploy_rsa"
+        type: rsa
+        size: 4096
+      when: inventory_hostname in groups["alpha"]
+
+    - name: Fetch public SSH key
+      fetch:
+        src: "/home/vagrant/.ssh/deploy_rsa.pub"
+        dest: "/tmp/deploy_rsa.pub"
+        flat: yes
+      when: inventory_hostname in groups["alpha"]
+
+    - name: Create deploy user
+      user:
+        name: deploy
+        password: '!'
+        groups:
+          - docker
+      when: inventory_hostname in groups["beta"]
+
+    - name: Copy public SSH key
+      authorized_key:
+        user: deploy
+        key: "{{ lookup('file', '/tmp/deploy_rsa.pub')}}"
+      when: inventory_hostname in groups["beta"]

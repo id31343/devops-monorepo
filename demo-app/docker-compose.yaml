@@ -1,0 +1,15 @@
+version: '3'
+
+services:
+
+  web:
+    image: node:18.16.0-alpine
+    container_name: web
+    ports:
+      - 8001:8000
+    volumes:
+      - ./:/app/src/
+    working_dir: /app/src/
+    environment:
+      - NODE_ENV=dev
+    command: npm run start

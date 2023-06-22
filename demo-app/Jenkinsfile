@@ -1,0 +1,80 @@
+// TODO: figure out how to change context or working directory for entire pipeline to avoid using dir()
+def appDir = 'demo-app/'
+
+pipeline {
+    agent any
+
+    options {
+        buildDiscarder logRotator(artifactDaysToKeepStr: '', artifactNumToKeepStr: '10', daysToKeepStr: '', numToKeepStr: '10')
+    }
+
+    tools {
+        nodejs "18.16.0"
+    }
+
+    environment {
+        ALPHA = '192.168.56.10'
+        BETA = '192.168.56.11'
+        SSH_PORT = '22'
+        SSH_KEY = credentials('DEPLOY_SSH_KEY')
+
+        REGISTRY = 'docker-registry:5000'
+    } 
+
+    stages {
+        stage('Install dependencies') {
+            steps {
+                dir(appDir) {
+                    sh 'npm ci'
+                } 
+            }
+        }
+
+        stage('Run lint') {
+            steps {
+                dir(appDir) {
+                    sh 'npm run lint'
+                } 
+            }
+        }
+
+        stage('Run tests') {
+            steps {
+                dir(appDir) {
+                    sh 'docker compose -f docker-compose.test.yaml up --build --remove-orphans --exit-code-from web-test'
+                } 
+            }
+        }
+
+        stage('Deploy') {
+            when {
+                tag 'release-*'
+            }
+
+            steps {
+                dir(appDir) {
+                    sh 'docker build docker/nginx/ -t $REGISTRY/demo-app-nginx:$TAG_NAME -f docker/nginx/Dockerfile'
+                    sh 'docker build . -t $REGISTRY/demo-app-node:$TAG_NAME -f docker/node/Dockerfile'
+                    sh 'docker push $REGISTRY/demo-app-nginx:$TAG_NAME'
+                    sh 'docker push $REGISTRY/demo-app-node:$TAG_NAME'
+
+                    sh 'ssh deploy@$BETA -p $SSH_PORT -i $SSH_KEY -o StrictHostKeyChecking=accept-new "rm -rf demo_app && mkdir demo_app"'
+                    sh 'scp -P $SSH_PORT -i $SSH_KEY -o StrictHostKeyChecking=accept-new docker-compose.prod.yaml deploy@$BETA:demo_app/docker-compose.yaml'
+                    sh 'ssh deploy@$BETA -p $SSH_PORT -i $SSH_KEY -o StrictHostKeyChecking=accept-new "cd demo_app && echo "REGISTRY=$ALPHA:5000" >> .env"'
+                    sh 'ssh deploy@$BETA -p $SSH_PORT -i $SSH_KEY -o StrictHostKeyChecking=accept-new "cd demo_app&& echo "IMAGE_TAG=$TAG_NAME" >> .env"'
+
+                    sh 'ssh deploy@$BETA -p $SSH_PORT -i $SSH_KEY -o StrictHostKeyChecking=accept-new "cd demo_app && docker compose pull"'
+                    sh 'ssh deploy@$BETA -p $SSH_PORT -i $SSH_KEY -o StrictHostKeyChecking=accept-new "cd demo_app && docker compose up --build --remove-orphans -d"'
+                }
+            }
+        }
+    }
+
+    post {
+        always {
+            dir(appDir) {
+                sh 'rm -rf node_modules/'
+            }
+        }
+    }    
+}

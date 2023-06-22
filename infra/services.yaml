@@ -1,0 +1,33 @@
+---
+- hosts: all
+  gather_facts: no
+  become: true
+
+  tasks:
+    - name: Create services directory
+      file:
+        path: "/services"
+        state: directory
+
+    - name: Copy docker services files
+      copy:
+        src: "{{ item.src }}"
+        dest: "/services/"
+      with_items:
+        - src: "../files/docker/services/docker-compose.yaml"
+        - src: "../files/docker/services/prometheus"
+        - src: "../files/docker/services/grafana"
+      when: inventory_hostname in groups["alpha"]
+
+    - name: Copy docker exporters file
+      copy:
+        src: "../files/docker/services/docker-compose.exporters.yaml"
+        dest: "/services/docker-compose.yaml"
+      when: inventory_hostname in groups["beta"]
+
+    # Community docker module only works with docker-compose >= 1.7.0, < 2.0.0 versions at the moment,
+    # which forced me to run docker compose commands manually
+    - name: Run docker-compose files
+      shell: |
+        docker compose -f /services/docker-compose.yaml down --remove-orphans
+        docker compose -f /services/docker-compose.yaml up -d

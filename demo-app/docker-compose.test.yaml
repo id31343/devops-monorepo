@@ -1,0 +1,15 @@
+version: '3'
+
+services:
+
+  web-test:
+    image: node:18.16.0-alpine
+    container_name: web-test
+    ports:
+      - 8002:8000
+    volumes:
+      - ./:/app/src/
+    working_dir: /app/src/
+    environment:
+      - NODE_ENV=test
+    command: npm run test
